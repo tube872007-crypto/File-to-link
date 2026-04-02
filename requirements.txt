@@ -1,5 +1,6 @@
+pyrogram
+tgcrypto
+pyTelegramBotAPI
 fastapi
 uvicorn
-pyTelegramBotAPI
-cloudinary
-python-multipart
+requests
