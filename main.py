@@ -1,17 +1,25 @@
 import os
 import uuid
+import cloudinary
+import cloudinary.uploader
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse
 import telebot
 
+# ================= CONFIG =================
 TOKEN = os.getenv("BOT_TOKEN")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+
+cloudinary.config(
+    cloud_name=os.getenv("CLOUD_NAME"),
+    api_key=os.getenv("API_KEY"),
+    api_secret=os.getenv("API_SECRET")
+)
 
 bot = telebot.TeleBot(TOKEN)
 app = FastAPI()
 
-DOWNLOAD_DIR = "downloads"
-os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+if not WEBHOOK_URL:
+    raise RuntimeError("WEBHOOK_URL not set")
 
 # ================= WEBHOOK =================
 @app.post("/webhook")
@@ -21,28 +29,36 @@ async def webhook(req: Request):
     bot.process_new_updates([update])
     return {"ok": True}
 
-# ================= FILE SERVER =================
-@app.get("/file/{file_id}")
-def get_file(file_id: str):
-    file_path = os.path.join(DOWNLOAD_DIR, file_id)
-    if os.path.exists(file_path):
-        return FileResponse(file_path)
-    return {"error": "File not found"}
+# ================= FILE UPLOAD =================
+def upload_to_cloud(file_bytes, filename):
+    try:
+        result = cloudinary.uploader.upload(
+            file_bytes,
+            resource_type="auto",
+            public_id=str(uuid.uuid4())
+        )
+        return result["secure_url"]
+    except Exception as e:
+        return None
 
 # ================= HANDLE FILE =================
-def handle_file(message, file_id, file_name="file"):
-    file_info = bot.get_file(file_id)
-    downloaded_file = bot.download_file(file_info.file_path)
+def handle_file(message, file_id, filename="file"):
+    try:
+        file_info = bot.get_file(file_id)
+        file_data = bot.download_file(file_info.file_path)
 
-    unique_name = f"{uuid.uuid4()}_{file_name}"
-    file_path = os.path.join(DOWNLOAD_DIR, unique_name)
+        link = upload_to_cloud(file_data, filename)
 
-    with open(file_path, "wb") as f:
-        f.write(downloaded_file)
+        if link:
+            bot.reply_to(
+                message,
+                f"✅ File uploaded successfully!\n\n🔗 Download Link:\n{link}"
+            )
+        else:
+            bot.reply_to(message, "❌ Upload failed. Try again.")
 
-    download_link = f"{WEBHOOK_URL}/file/{unique_name}"
-
-    bot.reply_to(message, f"✅ File uploaded!\n\n🔗 Download: {download_link}")
+    except Exception as e:
+        bot.reply_to(message, f"⚠️ Error: {str(e)}")
 
 # ================= HANDLERS =================
 @bot.message_handler(content_types=['document'])
@@ -60,10 +76,14 @@ def video_handler(message):
 
 @bot.message_handler(commands=['start'])
 def start(msg):
-    bot.reply_to(msg, "📁 Send me any file, I will convert it to a download link!")
+    bot.reply_to(
+        msg,
+        "🚀 Send any file to get a permanent download link!\n\n"
+        "☁️ Powered by Cloud Storage"
+    )
 
 # ================= STARTUP =================
 @app.on_event("startup")
-def set_webhook():
+def setup():
     bot.remove_webhook()
     bot.set_webhook(url=f"{WEBHOOK_URL}/webhook")
