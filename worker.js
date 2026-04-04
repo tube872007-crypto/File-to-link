@@ -10,13 +10,6 @@ const PUBLIC_BOT = false; // Make your bot public (only [true, false] are allowe
 
 // ---------- Do Not Modify ---------- //
 
-const HEADERS = {
-  "content-type": "application/json",
-  "Access-Control-Allow-Origin": "*"
-};
-
-// ---------- Event ---------- //
-
 addEventListener("fetch", event => {
   event.respondWith(handleRequest(event));
 });
@@ -40,9 +33,9 @@ async function handleRequest(event) {
     return new Response("Invalid link", { status: 400 });
   }
 
-  const data = await Bot.editMessage(BOT_CHANNEL, message_id, "ping");
+  const data = await Bot.getMessage(BOT_CHANNEL, message_id);
 
-  if (!data || data.error_code) {
+  if (!data) {
     return new Response("File not found", { status: 404 });
   }
 
@@ -98,7 +91,7 @@ class Bot {
     const res = await fetch(
       `https://api.telegram.org/bot${BOT_TOKEN}/setWebhook?url=${webhook}&secret_token=${BOT_SECRET}`
     );
-    return new Response(await res.text(), { headers: HEADERS });
+    return new Response(await res.text());
   }
 
   static async sendMessage(chat_id, text) {
@@ -117,9 +110,10 @@ class Bot {
     });
   }
 
-  static async editMessage(chat_id, message_id, text) {
+  // 🔥 IMPORTANT FIX (works for all files)
+  static async getMessage(chat_id, message_id) {
     const res = await fetch(
-      `https://api.telegram.org/bot${BOT_TOKEN}/editMessageCaption?chat_id=${chat_id}&message_id=${message_id}&caption=${text}`
+      `https://api.telegram.org/bot${BOT_TOKEN}/forwardMessage?chat_id=${chat_id}&from_chat_id=${chat_id}&message_id=${message_id}`
     );
     return (await res.json()).result;
   }
