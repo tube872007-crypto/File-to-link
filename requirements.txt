@@ -1,5 +1,1 @@
-pyrogram
-tgcrypto
-fastapi
-uvicorn
-requests
+pyTelegramBotAPI
