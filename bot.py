@@ -1,60 +1,47 @@
-import os
 import telebot
-import requests
+import os
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-CLOUD_NAME = os.getenv("CLOUD_NAME")
-API_KEY = os.getenv("API_KEY")
-API_SECRET = os.getenv("API_SECRET")
+TOKEN = os.getenv("BOT_TOKEN")
+bot = telebot.TeleBot(TOKEN)
 
-if not BOT_TOKEN:
-    raise RuntimeError("Missing BOT_TOKEN")
-
-bot = telebot.TeleBot(BOT_TOKEN)
-
-CLOUDINARY_URL = f"https://api.cloudinary.com/v1_1/{CLOUD_NAME}/auto/upload"
-
-@bot.message_handler(commands=['start'])
-def start(message):
-    bot.reply_to(message, "🚀 Send any file to get a download link!")
+WORKER_URL = "https://your-worker-url"
 
 @bot.message_handler(content_types=['document', 'video', 'audio', 'photo'])
 def handle_file(message):
-    try:
-        file_id = None
+    if message.document:
+        file_info = bot.get_file(message.document.file_id)
+        file_name = message.document.file_name
+        file_size = message.document.file_size
+    elif message.video:
+        file_info = bot.get_file(message.video.file_id)
+        file_name = "video.mp4"
+        file_size = message.video.file_size
+    elif message.audio:
+        file_info = bot.get_file(message.audio.file_id)
+        file_name = "audio.mp3"
+        file_size = message.audio.file_size
+    else:
+        photo = message.photo[-1]
+        file_info = bot.get_file(photo.file_id)
+        file_name = "photo.jpg"
+        file_size = photo.file_size
 
-        if message.document:
-            file_id = message.document.file_id
-        elif message.video:
-            file_id = message.video.file_id
-        elif message.audio:
-            file_id = message.audio.file_id
-        elif message.photo:
-            file_id = message.photo[-1].file_id
+    file_size_mb = file_size / (1024 * 1024)
 
-        file_info = bot.get_file(file_id)
-        file_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_info.file_path}"
+    download_url = f"{WORKER_URL}/dl/{file_info.file_path}"
+    stream_url = f"{WORKER_URL}/stream/{file_info.file_path}"
 
-        file_data = requests.get(file_url).content
+    bot.reply_to(message, f"""
+✅ Links Generated Successfully!
 
-        response = requests.post(
-            CLOUDINARY_URL,
-            files={"file": file_data},
-            data={
-                "api_key": API_KEY,
-                "api_secret": API_SECRET
-            }
-        )
+📁 File: {file_name}
+📊 Size: {file_size_mb:.2f} MB
 
-        result = response.json()
+⬇️ Download:
+{download_url}
 
-        if "secure_url" in result:
-            bot.reply_to(message, f"✅ Download Link:\n{result['secure_url']}")
-        else:
-            bot.reply_to(message, "❌ Upload failed!")
+🎬 Stream:
+{stream_url}
+""")
 
-    except Exception as e:
-        bot.reply_to(message, f"❌ Error: {str(e)}")
-
-print("Bot started...")
 bot.infinity_polling()
