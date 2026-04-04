@@ -2,10 +2,10 @@
 
 const BOT_TOKEN = "8613353608:AAF43Ri5n5CoMa2YWKzHpeIeSzv5d9dOHvg"; // Insert your bot token.
 const BOT_WEBHOOK = "/endpoint"; // Let it be as it is.
-const BOT_SECRET = "BOT_SECRET"; // Insert a powerful secret text (only [A-Z, a-z, 0-9, _, -] are allowed).
+const BOT_SECRET = "nY7kQ2_ZmP4xA9vLwRt8HcD1uE6sF3Jb"; // Insert a powerful secret text (only [A-Z, a-z, 0-9, _, -] are allowed).
 const BOT_OWNER = 8014518098; // Insert your telegram account id.
 const BOT_CHANNEL = -8613353608; // Insert your telegram channel id which the bot is admin in.
-const SIA_SECRET = "SIA_SECRET"; // Insert a powerful secret text and keep it safe.
+const SIA_SECRET = "Xq8LzR5_Ty9VbC2mKp7WnE4hA6uDsJf0"; // Insert a powerful secret text and keep it safe.
 const PUBLIC_BOT = false; // Make your bot public (only [true, false] are allowed).
 
 // ---------- Do Not Modify ---------- // 
