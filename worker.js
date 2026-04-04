@@ -157,7 +157,7 @@ async function onMessage(message) {
   const msg_id = data.result.message_id;
   const hash = await Cryptic.Hash(msg_id);
 
-  const link = `https://fille-to-link.tube872007.workers.dev/?file=${hash}`;
+  const link = `https://file-to-link.tube872007.workers.dev/?file=${hash}`;
 
   return Bot.sendMessage(
     message.chat.id,
