@@ -10,34 +10,34 @@ const PUBLIC_BOT = false; // Make your bot public (only [true, false] are allowe
 
 // ---------- Do Not Modify ---------- //
 
-addEventListener("fetch", event => {
-  event.respondWith(handleRequest(event));
-});
+export default {
+  async fetch(request) {
+    return handleRequest(request);
+  }
+};
 
-// ---------- Main Handler ---------- //
+// ---------- MAIN ---------- //
 
-async function handleRequest(event) {
-  const url = new URL(event.request.url);
+async function handleRequest(request) {
+  const url = new URL(request.url);
   const file = url.searchParams.get("file");
 
-  if (url.pathname === BOT_WEBHOOK) return Bot.handleWebhook(event);
-  if (url.pathname === "/registerWebhook") return Bot.registerWebhook(url);
+  if (url.pathname === "/endpoint") return handleWebhook(request);
+  if (url.pathname === "/registerWebhook") return registerWebhook(url);
 
   if (!file) return new Response("Missing file", { status: 400 });
 
   let message_id;
 
   try {
-    message_id = await Cryptic.deHash(file);
+    message_id = atob(file).replace("_secure", "");
   } catch {
     return new Response("Invalid link", { status: 400 });
   }
 
-  const data = await Bot.getMessage(BOT_CHANNEL, message_id);
+  const data = await getMessage(BOT_CHANNEL, message_id);
 
-  if (!data) {
-    return new Response("File not found", { status: 404 });
-  }
+  if (!data) return new Response("File not found", { status: 404 });
 
   let file_id;
 
@@ -47,86 +47,70 @@ async function handleRequest(event) {
   else if (data.photo) file_id = data.photo[data.photo.length - 1].file_id;
   else return new Response("Unsupported file", { status: 400 });
 
-  const fileInfo = await Bot.getFile(file_id);
+  const fileInfo = await getFile(file_id);
 
-  // 🔥 FIX: Redirect (NO SIZE LIMIT)
+  // ✅ REDIRECT (NO SIZE LIMIT)
   const fileUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${fileInfo.file_path}`;
   return Response.redirect(fileUrl, 302);
 }
 
-// ---------- Cryptic ---------- //
+// ---------- WEBHOOK ---------- //
 
-class Cryptic {
-  static async Hash(text) {
-    return btoa(text + "_secure");
+async function handleWebhook(request) {
+  if (request.headers.get("X-Telegram-Bot-Api-Secret-Token") !== BOT_SECRET) {
+    return new Response("Unauthorized", { status: 403 });
   }
 
-  static async deHash(hash) {
-    const decoded = atob(hash);
-    return decoded.replace("_secure", "");
+  const update = await request.json();
+
+  if (update.message) {
+    await onMessage(update.message);
   }
+
+  return new Response("OK");
 }
 
-// ---------- Telegram Bot ---------- //
+// ---------- TELEGRAM ---------- //
 
-class Bot {
-  static async handleWebhook(event) {
-    if (
-      event.request.headers.get("X-Telegram-Bot-Api-Secret-Token") !== BOT_SECRET
-    ) {
-      return new Response("Unauthorized", { status: 403 });
-    }
-
-    const update = await event.request.json();
-
-    if (update.message) {
-      await onMessage(update.message);
-    }
-
-    return new Response("OK");
-  }
-
-  static async registerWebhook(url) {
-    const webhook = `${url.origin}${BOT_WEBHOOK}`;
-    const res = await fetch(
-      `https://api.telegram.org/bot${BOT_TOKEN}/setWebhook?url=${webhook}&secret_token=${BOT_SECRET}`
-    );
-    return new Response(await res.text());
-  }
-
-  static async sendMessage(chat_id, text) {
-    return fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id, text })
-    });
-  }
-
-  static async sendDocument(chat_id, file_id) {
-    return fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendDocument`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id, document: file_id })
-    });
-  }
-
-  // 🔥 IMPORTANT FIX (works for all files)
-  static async getMessage(chat_id, message_id) {
-    const res = await fetch(
-      `https://api.telegram.org/bot${BOT_TOKEN}/forwardMessage?chat_id=${chat_id}&from_chat_id=${chat_id}&message_id=${message_id}`
-    );
-    return (await res.json()).result;
-  }
-
-  static async getFile(file_id) {
-    const res = await fetch(
-      `https://api.telegram.org/bot${BOT_TOKEN}/getFile?file_id=${file_id}`
-    );
-    return (await res.json()).result;
-  }
+async function registerWebhook(url) {
+  const webhook = `${url.origin}/endpoint`;
+  const res = await fetch(
+    `https://api.telegram.org/bot${BOT_TOKEN}/setWebhook?url=${webhook}&secret_token=${BOT_SECRET}`
+  );
+  return new Response(await res.text());
 }
 
-// ---------- Message Handler ---------- //
+async function sendMessage(chat_id, text) {
+  return fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ chat_id, text })
+  });
+}
+
+async function sendDocument(chat_id, file_id) {
+  return fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendDocument`, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ chat_id, document: file_id })
+  });
+}
+
+async function getMessage(chat_id, message_id) {
+  const res = await fetch(
+    `https://api.telegram.org/bot${BOT_TOKEN}/forwardMessage?chat_id=${chat_id}&from_chat_id=${chat_id}&message_id=${message_id}`
+  );
+  return (await res.json()).result;
+}
+
+async function getFile(file_id) {
+  const res = await fetch(
+    `https://api.telegram.org/bot${BOT_TOKEN}/getFile?file_id=${file_id}`
+  );
+  return (await res.json()).result;
+}
+
+// ---------- MESSAGE ---------- //
 
 async function onMessage(message) {
   if (message.chat.id.toString().includes("-100")) return;
@@ -144,22 +128,20 @@ async function onMessage(message) {
     file_id = message.photo[message.photo.length - 1].file_id;
     file_name = "image.jpg";
   } else {
-    return Bot.sendMessage(message.chat.id, "Send a file.");
+    return sendMessage(message.chat.id, "Send a file.");
   }
 
-  const save = await Bot.sendDocument(BOT_CHANNEL, file_id);
+  const save = await sendDocument(BOT_CHANNEL, file_id);
   const data = await save.json();
 
-  if (!data.ok) {
-    return Bot.sendMessage(message.chat.id, "Upload failed.");
-  }
+  if (!data.ok) return sendMessage(message.chat.id, "Upload failed");
 
   const msg_id = data.result.message_id;
-  const hash = await Cryptic.Hash(msg_id);
+  const hash = btoa(msg_id + "_secure");
 
-  const link = `https://file-to-link.tube872007.workers.dev/?file=${hash}`;
+  const link = `https://fille-to-link.tube872007.workers.dev/?file=${hash}`;
 
-  return Bot.sendMessage(
+  return sendMessage(
     message.chat.id,
     `✅ File stored\n📁 ${file_name}\n🔗 ${link}`
   );
